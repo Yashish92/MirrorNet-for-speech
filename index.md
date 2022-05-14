@@ -1,6 +1,8 @@
-## MirrorNet : Sensorimotor Interaction Inspired Learning for Speech Production
+## MirrorNet : Sensorimotor Interaction Inspired Learning for Audio Synthesizer Controls
 
-This website presents audio reconstructions and auditory spectrograms for experiments done with MirrorNet for speech 
+This website presents audio reconstructions and auditory spectrograms for experiments presented in the paper MirrorNet : Sensorimotor Interaction Inspired Learning for Audio Synthesizer Controls.
+
+![Model architecture](model_archi_v3.png)
 
 ### Brief Intro
 
@@ -8,14 +10,14 @@ Experiments to understand the sensorimotor neural interactions in the human cort
 
 ### Audio Reconstructions and Auditory spectrograms
 
-#### Results with VOC synthesizer
+#### Experiment 1 : Learning DIVA parameters from melodies synthesized with the same set of parameters (set 1)
 
 <div style="overflow-x: auto;" class="figure">
     <table class="audioTable">
         <tr>
 <!--             <th rowspan="2">Audio</th> -->
             <th colspan="2">Input Melody</th>
-            <th colspan="2">VOC reconstructed Melody</th>
+            <th colspan="2">DIVA reconstructed Melody</th>
 <!--             <th rowspan="2">Audio</th> -->
         </tr>
         <tr>
@@ -53,7 +55,7 @@ Experiments to understand the sensorimotor neural interactions in the human cort
     </table>
 </div>
 
-#### Results with TV based articulatory synthesizer
+#### Experiment 2 : Learning DIVA parameters from melodies synthesized with extra unknown DIVA parameters (set 2)
 
 <div class="figure">
     <table class="audioTable">
@@ -99,3 +101,47 @@ Experiments to understand the sensorimotor neural interactions in the human cort
 </div>
 
 
+#### Experiment 3 : Learning DIVA parameters to synthesize melodies generated from other synthesizers
+
+<div class="figure">
+    <table class="audioTable">
+        <tr>
+<!--             <th rowspan="2">Audio</th> -->
+            <th colspan="2">Input Melody</th>
+            <th colspan="2">DIVA reconstructed Melody</th>
+<!--             <th rowspan="2">Audio</th> -->
+        </tr>
+        <tr>
+            <th width="200px">Audio</th>
+<!--             <th>Parameters</th> -->
+            <th width="500px">Auditory Spectrogram</th>
+            <th width="500px">Auditory Spectrogram</th>
+<!--             <th>Parameters</th> -->
+            <th width="200px">Audio</th>
+        </tr>
+        <tr>
+            <td><audio controls="controls"><source src="audio/exp_piano_real_5.mp3"></audio></td>
+<!--             <td>PARAMS IMG</td> -->
+            <td><img width="300px" height="160px" src="spectrograms/piano_original_spec_5.png"></td>
+            <td><img width="300px" height="160px" src="spectrograms/piano_DIVA_spec_5.png"></td>
+<!--             <td>PARAMS IMG</td> -->
+            <td><audio controls="controls"><source src="audio/exp_piano_DIVA_5.mp3"></audio></td>
+        </tr>
+        <tr>
+            <td><audio controls="controls"><source src="audio/exp_piano_real_6.mp3"></audio></td>
+<!--             <td>PARAMS IMG</td> -->
+            <td><img width="300px" height="160px" src="spectrograms/piano_original_spec_6.png"></td>
+            <td><img width="300px" height="160px" src="spectrograms/piano_DIVA_spec_6.png"></td>
+<!--             <td>PARAMS IMG</td> -->
+            <td><audio controls="controls"><source src="audio/exp_piano_DIVA_6.mp3"></audio></td>
+        </tr>
+        <tr>
+            <td><audio controls="controls"><source src="audio/exp_piano_real_8.mp3"></audio></td>
+<!--             <td>PARAMS IMG</td> -->
+            <td><img width="300px" height="160px" src="spectrograms/piano_original_spec_8.png"></td>
+            <td><img width="300px" height="160px" src="spectrograms/piano_DIVA_spec_8.png"></td>
+<!--             <td>PARAMS IMG</td> -->
+            <td><audio controls="controls"><source src="audio/exp_piano_DIVA_8.mp3"></audio></td>
+        </tr>
+    </table>
+</div>
