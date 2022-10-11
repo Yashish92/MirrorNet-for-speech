@@ -17,82 +17,16 @@ Tables below show output auditory spectrograms and their corresponding acoustic 
 |  Description   |  Audio   |  Auditory spectrogram   |
 | --- | --- | --- |
 |  Input Audio (Female)   |  <audio controls="controls"><source src="TV_syn_audio/original/RealSpectrogram4.mp3"></audio>  |  <img width="300px" height="160px" src="TV_syn_spectrograms/original/sample4_orig.png">   |
-|     |     |     |
-|     |     |     |
-|     |     |     |
-|     |     |     |
+|  Fully trained with source features   |  <audio controls="controls"><source src="TV_syn_audio/fully_trained/decoderSpectrogram4.mp3"></audio>   |  <img width="300px" height="160px" src="TV_syn_spectrograms/fully_trained/sample4_fully.png">   |
+|  Fully trained 'without' source features  |  <audio controls="controls"><source src="TV_syn_audio/6TV_syn/decoderSpectrogram4_6tvs.mp3"></audio>   |  <img width="300px" height="160px" src="TV_syn_spectrograms/6TV_syn/sample4_6TV.png">   |
+|  Lightly trained with source features   |  <audio controls="controls"><source src="TV_syn_audio/lightly_trained/decoderSpectrogram4_dev.mp3"></audio>   |  <img width="300px" height="160px" src="TV_syn_spectrograms/lightly_trained/sample4_light.png"> |
 
-<div style="overflow-x: auto;" class="figure">
-    <table class="audioTable">
-        <tr>
-<!--             <th rowspan="2">Audio</th> -->
-            <th>Description</th>
-            <th>Audio</th>
-	    	<th>Auditory spectrogram</th>
-<!--             <th rowspan="2">Audio</th> -->
-        </tr>
-        <tr>
-			<td> Input Audio (Female) 
-            <td><audio controls="controls"><source src="TV_syn_audio/original/RealSpectrogram4.mp3"></audio></td>
-<!--             <td>PARAMS IMG</td> -->
-            <td><img width="300px" height="160px" src="TV_syn_spectrograms/original/sample4_orig.png"></td>
-        </tr>
-        <tr>
-			<td> Fully trained with source features 
-            <td><audio controls="controls"><source src="TV_syn_audio/fully_trained/decoderSpectrogram4.mp3"></audio></td>
-<!--             <td>PARAMS IMG</td> -->
-            <td><img width="300px" height="160px" src="TV_syn_spectrograms/fully_trained/sample4_fully.png"></td>
-        </tr>
-		        <tr>
-			<td> Fully trained 'without' source features 
-            <td><audio controls="controls"><source src="TV_syn_audio/6TV_syn/decoderSpectrogram4_6tvs.mp3"></audio></td>
-<!--             <td>PARAMS IMG</td> -->
-            <td><img width="300px" height="160px" src="TV_syn_spectrograms/6TV_syn/sample4_6TV.png"></td>
-        </tr>
-		        <tr>
-			<td> Lightly trained with source features 
-            <td><audio controls="controls"><source src="TV_syn_audio/lightly_trained/decoderSpectrogram4_dev.mp3"></audio></td>
-<!--             <td>PARAMS IMG</td> -->
-            <td><img width="300px" height="160px" src="TV_syn_spectrograms/lightly_trained/sample4_light.png"></td>
-        </tr>
-    </table>
-</div>
-
-<div class="figure">
-    <table class="audioTable">
-        <tr>
-<!--             <th rowspan="2">Audio</th> -->
-            <th>Description</th>
-            <th>Audio</th>
-	    	<th>Auditory spectrogram</th>
-<!--             <th rowspan="2">Audio</th> -->
-        </tr>
-        <tr>
-			<td> Input Audio (Male) 
-            <td><audio controls="controls"><source src="TV_syn_audio/original/RealSpectrogram6.mp3"></audio></td>
-<!--             <td>PARAMS IMG</td> -->
-            <td><img width="300px" height="160px" src="TV_syn_spectrograms/original/sample6_orig.png"></td>
-        </tr>
-        <tr>
-			<td> Fully trained and with source features 
-            <td><audio controls="controls"><source src="TV_syn_audio/fully_trained/decoderSpectrogram6.mp3"></audio></td>
-<!--             <td>PARAMS IMG</td> -->
-            <td><img width="300px" height="160px" src="TV_syn_spectrograms/fully_trained/sample6_fully.png"></td>
-        </tr>
-		        <tr>
-			<td> Fully trained and 'without' source features 
-            <td><audio controls="controls"><source src="TV_syn_audio/6TV_syn/decoderSpectrogram6_6tvs.mp3"></audio></td>
-<!--             <td>PARAMS IMG</td> -->
-            <td><img width="300px" height="160px" src="TV_syn_spectrograms/6TV_syn/sample6_6TV.png"></td>
-        </tr>
-		        <tr>
-			<td> Lightly trained and with source features 
-            <td><audio controls="controls"><source src="TV_syn_audio/lightly_trained/decoderSpectrogram6.mp3"></audio></td>
-<!--             <td>PARAMS IMG</td> -->
-            <td><img width="300px" height="160px" src="TV_syn_spectrograms/lightly_trained/sample6_light.png"></td>
-        </tr>
-    </table>
-</div>
+|  Description   |  Audio   |  Auditory spectrogram   |
+| --- | --- | --- |
+|  Input Audio (Female)   |  <audio controls="controls"><source src="TV_syn_audio/original/RealSpectrogram6.mp3"></audio>  |  <img width="300px" height="160px" src="TV_syn_spectrograms/original/sample6_orig.png">   |
+|  Fully trained with source features   |  <audio controls="controls"><source src="TV_syn_audio/fully_trained/decoderSpectrogram6.mp3"></audio>   |  <img width="300px" height="160px" src="TV_syn_spectrograms/fully_trained/sample6_fully.png">   |
+|  Fully trained 'without' source features  |  <audio controls="controls"><source src="TV_syn_audio/6TV_syn/decoderSpectrogram6_6tvs.mp3"></audio>   |  <img width="300px" height="160px" src="TV_syn_spectrograms/6TV_syn/sample6_6TV.png">   |
+|  Lightly trained with source features   |  <audio controls="controls"><source src="TV_syn_audio/lightly_trained/decoderSpectrogram6.mp3"></audio>   |  <img width="300px" height="160px" src="TV_syn_spectrograms/lightly_trained/sample6_light.png">   |
 
 ### 2. MirrorNet with the articulatory synthesizer
 
