@@ -84,7 +84,7 @@ Tables below show output auditory spectrograms and their corresponding acoustic 
     </table>
 </div>
 
-#### 1. Results with MirrorNet for SI task
+#### 2. Results with MirrorNet for SI task
 
 Tables below show output auditory spectrograms and their corresponding acoustic output obtained by inverting the auditory spectrograms. Here the articulatory synthesizers developed in the previous step are used as the vocal tract model in the MirrorNet. 
 
