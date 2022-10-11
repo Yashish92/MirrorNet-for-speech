@@ -12,7 +12,7 @@ Experiments to understand the sensorimotor neural interactions in the human cort
 
 Tables below show output auditory spectrograms and their corresponding acoustic output obtained by inverting the auditory spectrograms. The two input speech utterenaces are from a male speaker and a feamle speaker in the test split. 
 
-<div class="figure">
+<div style="overflow-x: auto;" class="figure">
     <table class="audioTable">
         <tr>
 <!--             <th rowspan="2">Audio</th> -->
