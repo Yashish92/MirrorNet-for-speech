@@ -8,7 +8,7 @@ Experiments to understand the sensorimotor neural interactions in the human cort
 
 ### Articulatory-to-acoustic synthesizer
 
-![Model architecture](tv_synthesizer.png)
+![Model architecture](model_figures/tv_synthesizer.png)
 
 #### Auditory spectrograms and audio samples
 
@@ -88,7 +88,7 @@ Tables below show output auditory spectrograms and their corresponding acoustic 
 
 ### MirrorNet with the articulatory synthesizer
 
-![Model architecture](model_archi.png)
+![Model architecture](model_figures/model_archi.png)
 
 #### Auditory spectrograms and audio samples
 
