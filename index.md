@@ -8,7 +8,7 @@ Experiments to understand the sensorimotor neural interactions in the human cort
 
 ### Audio Reconstructions and Auditory spectrograms
 
-#### Results with the articulatory speech synthesizer
+#### 1. Results with the articulatory speech synthesizer
 
 Tables below show output auditory spectrograms and their corresponding acoustic output obtained by inverting the auditory spectrograms. The two input speech utterenaces are from a male speaker and a feamle speaker in the test split. 
 
@@ -16,9 +16,9 @@ Tables below show output auditory spectrograms and their corresponding acoustic 
     <table class="audioTable">
         <tr>
 <!--             <th rowspan="2">Audio</th> -->
-            <th colspan="1">Description</th>
-            <th colspan="1">Audio</th>
-	    	<th colspan="1">Auditory spectrogram</th>
+            <th>Description</th>
+            <th>Audio</th>
+	    	<th>Auditory spectrogram</th>
 <!--             <th rowspan="2">Audio</th> -->
         </tr>
         <tr>
@@ -52,9 +52,9 @@ Tables below show output auditory spectrograms and their corresponding acoustic 
     <table class="audioTable">
         <tr>
 <!--             <th rowspan="2">Audio</th> -->
-            <th colspan="1">Description</th>
-            <th colspan="1">Audio</th>
-	    	<th colspan="1">Auditory spectrogram</th>
+            <th>Description</th>
+            <th>Audio</th>
+	    	<th>Auditory spectrogram</th>
 <!--             <th rowspan="2">Audio</th> -->
         </tr>
         <tr>
