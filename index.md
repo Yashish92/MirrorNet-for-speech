@@ -6,11 +6,11 @@ This website presents audio reconstructions and auditory spectrograms for experi
 
 Experiments to understand the sensorimotor neural interactions in the human cortical speech system support the existence of a bidirectional flow of interactions between the auditory and motor regions. Their key function is to enable the brain to ’learn’ how to control the vocal tract for speech production. This idea is the impetus for the recently proposed ”MirrorNet”, a constrained autoencoder architecture. 
 
-### Articulatory-to-acoustic synthesizer
+### 1. Articulatory-to-acoustic synthesizer
 
 ![Model architecture](model_figures/tv_synthesizer.png)
 
-#### Auditory spectrograms and audio samples
+#### -- Auditory spectrograms and audio samples
 
 Tables below show output auditory spectrograms and their corresponding acoustic output obtained by inverting the auditory spectrograms. The two input speech utterenaces are from a male speaker and a feamle speaker in the test split. 
 
@@ -86,11 +86,11 @@ Tables below show output auditory spectrograms and their corresponding acoustic 
     </table>
 </div>
 
-### MirrorNet with the articulatory synthesizer
+### 2. MirrorNet with the articulatory synthesizer
 
 ![Model architecture](model_figures/model_archi.png)
 
-#### Auditory spectrograms and audio samples
+#### -- Auditory spectrograms and audio samples
 
 Tables below show output auditory spectrograms and their corresponding acoustic output obtained by inverting the auditory spectrograms. Here the articulatory synthesizers developed in the previous step are used as the vocal tract model in the MirrorNet. 
 
