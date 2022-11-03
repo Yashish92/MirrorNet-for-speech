@@ -1,10 +1,13 @@
 ## Learning Articulatory Representations with the MIRRORNET
 
-This website presents audio reconstructions and auditory spectrograms for experiments done with MirrorNet on speech production
+This website presents audio reconstructions and auditory spectrograms for experiments done in the paper : [LEARNING TO COMPUTE THE ARTICULATORY REPRESENTATIONS OF SPEECH WITH
+THE MIRRORNET](https://arxiv.org/pdf/2210.16454.pdf)
 
 ### Brief Intro
 
 Experiments to understand the sensorimotor neural interactions in the human cortical speech system support the existence of a bidirectional flow of interactions between the auditory and motor regions. Their key function is to enable the brain to ’learn’ how to control the vocal tract for speech production. This idea is the impetus for the recently proposed ”MirrorNet”, a constrained autoencoder architecture. 
+
+The first section in the webpage presents audio samples and corresponding spectrograms from the articulatory-to-acoustic synthesizers developed in the project. The second section presents the results of audio samples and corresponding spectrograms synthesized by the articulatory parameters estimated by the MirrorNet on unseen utterances and speakers from the test split of the XRMB dataset.
 
 ### 1. Articulatory-to-acoustic synthesizer
 
@@ -35,7 +38,7 @@ Tables below show output auditory spectrograms and their corresponding acoustic 
 
 #### -- Auditory spectrograms and audio samples
 
-Tables below show output auditory spectrograms and their corresponding acoustic output obtained by inverting the auditory spectrograms. Here the articulatory synthesizers developed in the previous step are used as the vocal tract model in the MirrorNet. The results are from speech utterenaces in the test split of the XRMB dataset. 
+Tables below show output auditory spectrograms and their corresponding acoustic output obtained by inverting the auditory spectrograms. Here the articulatory synthesizers developed in the previous step are used as the vocal tract model in the MirrorNet. The results are from unseen speech utterenaces in the test split of the XRMB dataset. 
 
 |  Description   |  Audio   |  Auditory spectrogram   |
 | --- | --- | --- |
