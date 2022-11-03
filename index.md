@@ -35,7 +35,7 @@ Tables below show output auditory spectrograms and their corresponding acoustic 
 
 #### -- Auditory spectrograms and audio samples
 
-Tables below show output auditory spectrograms and their corresponding acoustic output obtained by inverting the auditory spectrograms. Here the articulatory synthesizers developed in the previous step are used as the vocal tract model in the MirrorNet. 
+Tables below show output auditory spectrograms and their corresponding acoustic output obtained by inverting the auditory spectrograms. Here the articulatory synthesizers developed in the previous step are used as the vocal tract model in the MirrorNet. The results are from speech utterenaces in the test split of the XRMB dataset. 
 
 |  Description   |  Audio   |  Auditory spectrogram   |
 | --- | --- | --- |
