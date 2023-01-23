@@ -1,13 +1,6 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-'''
-This script implements the MirrorNet model without any initialization step
-
-Author : Yashish
-
-'''
-
 from __future__ import print_function
 import argparse
 import time
@@ -18,8 +11,10 @@ SERVER = True  # This variable enable or disable matplotlib, set it to true when
 if SERVER:
     matplotlib.use('Agg')
 
+import sys
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from torch.autograd import Variable
 from torch.utils.data import DataLoader
 from torch.utils.data import Dataset
@@ -37,7 +32,17 @@ import pickle as pkl
 import datetime
 
 from utils_PPMC import compute_corr_score
+from scipy.io.wavfile import write
 
+# import inspect
+import nsltools as nsl
+# from pink_tromb_lib.pynkTrombone.voc import Voc
+# from pink_tromb_lib.examples import voc_synthesize_sm as voc_syn
+from scipy.io import savemat
+
+# get_ipython().run_line_magic('matplotlib', 'inline')
+
+# get_ipython().run_line_magic('env', 'CUDA_VISIBLE_DEVICES = 0')
 
 # In[61]:
 spec_len = 250
@@ -157,10 +162,25 @@ class synthesis_model(nn.Module):
         )
 
     def forward(self, input):
+        # input shape: B, T
+        # batch_size = input.size(0)
+        # nsample = input.size(1)
+
+        #
+        # print (input.size(), 'decoder input.size()')    #64-1027-251 shape of latent space
+        # this_input = self.L1(input)  # 64-128-250
+
+        # f0_out = self.f0_seq(input[0])
+        # ap_out = self.ap_seq(input[2])
         sp_out = self.sp_seq(input)
 
+        # # this_input = torch.cat([f0_out, sp_out, ap_out], 1)
         this_input = sp_out
 
+        #new_input = self.final_conv(this_input)
+        # this_input = input
+
+        # print (this_input.size(),'this_input before CNN stack decoder--------' )
         for i in range(len(self.CNN)):
             this_input = self.CNN[i](this_input)  # 64-128-250
             # print (this_input.size(), 'Size(this_input) inside CNN stack decoder')
@@ -171,6 +191,10 @@ class synthesis_model(nn.Module):
         # print (this_input.size(), 'Size(this_input). Decoder op') #output is 64-128-250
 
         return final_input
+
+
+
+# In[70]:
 
 
 class CNN1D(nn.Module):
@@ -274,6 +298,14 @@ class encoder(nn.Module):
             # nn.BatchNorm1d(128, 128, 1),  # added new
             # nn.ReLU()
         )
+        # self.encoder = nn.Conv1d(128, 128, 1)
+
+        # self.L1 = nn.Conv1d(128, 256, 1)
+        # self.encoder = nn.Conv1d(1, self.AE_channel, self.AE_win,
+        #                          stride=self.AE_stride, bias=False)
+        # self.enc_Norm = nn.GroupNorm(1, 256, eps=1e-16)
+
+        # self.L2 = nn.Conv1d(256, 256, 1)
 
         self.CNN = nn.ModuleList([])
         for s in range(self.stack):
@@ -285,6 +317,18 @@ class encoder(nn.Module):
                                   dilation=2 ** 4))
 
         self.music_seq = nn.Sequential(
+            # nn.Conv1d(self.BN_channel, 256,1),
+            # nn.BatchNorm1d(256, 256, 1),
+            # nn.ReLU(),
+            # nn.AvgPool1d(5, stride=5),
+            # nn.Conv1d(256, 128, 1),
+            # nn.BatchNorm1d(128, 128, 1),
+            # nn.ReLU(),
+            # nn.AvgPool1d(5, stride=5),
+            # nn.Conv1d(128, 4, 1),
+            # nn.BatchNorm1d(4, 4, 1),
+            # nn.AvgPool1d(2, stride=2),
+            # nn.Sigmoid()
 
             nn.Conv1d(self.BN_channel, 256, 1, bias=False),
             nn.BatchNorm1d(256, 256, 1),
@@ -302,6 +346,26 @@ class encoder(nn.Module):
             # nn.Sigmoid()
             nn.Tanh()
 
+
+            # nn.Conv1d(self.BN_channel, 256,kernel_size = 100),
+            # nn.BatchNorm1d(256, 256, 1),
+            # nn.ReLU(),
+            # nn.AvgPool1d(11, stride=5),
+            # nn.Conv1d(256, 128, kernel_size=99),
+            # nn.BatchNorm1d(128, 128, 1),
+            # nn.ReLU(),
+            # nn.Conv1d(128, 4, kernel_size=51),
+            # nn.BatchNorm1d(4, 4, 1),
+            # nn.AvgPool1d(19, stride=10),
+            # nn.Sigmoid()  # Need to change!!!!!!!!!!!!!!!!!!
+
+            # nn.Conv1d(self.BN_channel, 256, 1),
+            # nn.ReLU(),
+            # nn.Conv1d(256, 16, 1),
+            # nn.ReLU(),
+            # nn.Conv1d(16, 16, 1),
+            # nn.BatchNorm1d(16,16,1),
+            # nn.Sigmoid()
         )
 
     def forward(self, input):
@@ -310,9 +374,23 @@ class encoder(nn.Module):
         nsample = input.size(1)
         # print (input.size(), ' encoder input.size() encoder') #64-32320
 
+        # pad_num = 160
+        # pad_aux = Variable(torch.zeros(batch_size, pad_num)).type(input.type())
+        # input = torch.cat([pad_aux, input, pad_aux], 1)
+        # output = input.unsqueeze(1)  # B, 1, T=32320
+        # print (output.size(), 'encoder output')
+
         # encoder
         this_input = self.encoder(input)  # B, C, T #T=[{(32320-320)/80}+1]=401
         # print(enc_output.shape)
+
+        # enc_output = self.encoder(output) # B, C, T #T=[{(32320-320)/80}+1]=401
+        # Shape is now 64-256-401
+        # print (enc_output.size(), 'enc_output.size()') #B-256-T
+
+        # temporal convolutional network (TCN)
+        # this_input = self.L1(self.enc_Norm(enc_output))
+        # this_input = self.L1(self.enc_Norm(enc_output))
 
         # print (this_input.size(), 'this_input after L1, before stack. Encoder') #64-256-401
         for i in range(len(self.CNN)):
@@ -320,8 +398,30 @@ class encoder(nn.Module):
         # print (this_input.size(), 'this_input after CNN stack. Ecnoder-------') #64-256-401
 
         music = self.music_seq(this_input)  # 64-513-401
+        # print(music)
+        # print(music.shape)
+        # music.data[:, 0] = (music.data[:, 0] * 12) +62
+        # music.data[:, 1] = (music.data[:, 1] * 0.3) + 0.7
+        # music.data[:, 2] = music.data[:, 2]
+        # music.data[:, 3] = (music.data[:, 3] * 50) + 50
+
+        # music_arr = music.data.cpu().numpy().astype('float32')
+        # music_arr[:, 0, :] = (music_arr[:, 0, :] * 30) +12     # 12 to 42
+        # music_arr[:, 1, :] = (music_arr[:, 1, :] * 4.5) + -1  # -1 to 3.5
+        # if music_arr[:, 2, :] > 0.5:
+        #     music_arr[:, 2, :] = 0.9
+        # else:
+        #     music_arr[:, 2, :] = 0.0
+        # music_arr[:, 2, :] = (music_arr[:, 2, :] * 0.5) + 0.4
+        # music_arr[:, 3, :] = (music_arr[:, 3, :] * 50) + 50
+        # print(music_arr)
+        # music = torch.from_numpy(music_arr).float()
+        # music = music.to(device)
+        # music.requires_grad = True
 
         return music
+
+        # return Variable(music, requires_grad = True)
 
 
 # In[72]:
@@ -340,7 +440,30 @@ class decoder(nn.Module):
         self.CNN_layer = 4
         self.stack = 3
 
+        # self.encoder = nn.Conv1d(1, self.AE_channel, self.AE_win,
+        #                          stride=self.AE_stride, bias=False)
+
+        # self.L1 = nn.Sequential(
+        #                         nn.Conv1d(1+513*2, 256, 1)
+
+        # )
+
         self.L1 = nn.Sequential(
+            # nn.Upsample(scale_factor=2),
+            # nn.Conv1d(4, 128, 1),  # changed 1 + 513 * 2 to 16
+            # nn.BatchNorm1d(128, 128, 1),
+            # nn.ReLU(),
+            # nn.Upsample(scale_factor=5),
+            # nn.Conv1d(128, 256, 1),  # changed 1 + 513 * 2 to 16
+            # nn.BatchNorm1d(256, 256, 1),
+            # nn.ReLU(),
+            # nn.Upsample(scale_factor=5),
+            # nn.Conv1d(256, 256, 1),  # changed 1 + 513 * 2 to 16
+            # nn.BatchNorm1d(256, 256, 1),
+            # nn.ReLU()
+
+            #nn.AvgPool1d(4, stride=4),
+            #nn.Upsample(scale_factor=5),
             nn.Conv1d(params, 128, 1, bias=False),  # changed 1 + 513 * 2 to 16
             nn.BatchNorm1d(128, 128, 1),
             nn.ReLU(),
@@ -353,6 +476,18 @@ class decoder(nn.Module):
             nn.Conv1d(256, 256, 1, bias=False),  # changed 1 + 513 * 2 to 16
             nn.BatchNorm1d(256, 256, 1),
             nn.ReLU()
+
+            # nn.Upsample(scale_factor=12)
+            # nn.ConvTranspose1d(4, 128, kernel_size=51),  # changed 1 + 513 * 2 to 16
+            # nn.BatchNorm1d(128, 128, 1),
+            # nn.ReLU(),
+            # nn.ConvTranspose1d(128, 256, kernel_size=99),  # changed 1 + 513 * 2 to 16
+            # nn.BatchNorm1d(256, 256, 1),
+            # nn.ReLU(),
+            # nn.ConvTranspose1d(256, 256, kernel_size=100),  # changed 1 + 513 * 2 to 16
+            # nn.BatchNorm1d(256, 256, 1),
+            # nn.ReLU()
+
         )
 
         self.CNN = nn.ModuleList([])
@@ -364,6 +499,10 @@ class decoder(nn.Module):
             self.CNN.append(CNN1D(self.BN_channel, self.BN_channel, self.kernel,
                                   dilation=2 ** 4))
 
+        # self.L2 = nn.Sequential(
+        #                         nn.Conv1d(self.AE_channel, 256, 1)
+
+        # )
 
         self.L2 = nn.Sequential(
             nn.Conv1d(256, 256, 1),
@@ -380,6 +519,10 @@ class decoder(nn.Module):
         batch_size = input.size(0)
         nsample = input.size(1)
 
+        #
+        # print (input.size(), 'decoder input.size()')    #64-1027-251 shape of latent space
+        # print(input.size)
+        # input = input.unsqueeze(dim=3)
         this_input = self.L1(input)  # 64-128-250
         # print(this_input.shape)
         # print (this_input.size(),'this_input before CNN stack decoder--------' )
@@ -394,6 +537,17 @@ class decoder(nn.Module):
 
 
 criteron = nn.MSELoss()
+
+
+# def transform_params(enc_out):
+#     # print(music)
+#     # print(music.shape)
+#     enc_out.data[:, 0] = (enc_out.data[:, 0] * 12) + 62
+#     enc_out.data[:, 1] = (enc_out.data[:, 1] * 0.3) + 0.7
+#     # music.data[:, 2] = music.data[:, 2]
+#     enc_out.data[:, 3] = (enc_out.data[:, 3] * 50) + 50
+#
+#     return enc_out
 
 def min_max_norm(X):
     # X_samples = X.shape[0]
@@ -425,13 +579,11 @@ def new_training_technique(epoch, train_D=False, train_E=False, init=False):
     train_loss = 0.
     new_loss = 0.
 
-    pad = 10
+    for (batch_idx, data_train) in enumerate(train_loader):
 
-    for (batch_idx, data_random), (_, data_train) in zip(enumerate(train_random), enumerate(train_loader)):
-
-        batch_wav_random = Variable(data_random[0]).contiguous().float()
-        batch_h_random = Variable(data_random[2]).contiguous().float()
-        batch_spec_random = Variable(data_random[3]).contiguous().float()
+        batch_wav_random = Variable(data_train[0]).contiguous().float()
+        batch_h_random = Variable(data_train[2]).contiguous().float()
+        batch_spec_random = Variable(data_train[3]).contiguous().float()
 
         # batch_wav_train = Variable(data_train[0]).contiguous().float()
         # batch_spec_train = Variable(data_train[2]).contiguous().float()
@@ -440,7 +592,13 @@ def new_training_technique(epoch, train_D=False, train_E=False, init=False):
             batch_wav_random = batch_wav_random.cuda()
             batch_spec_random = batch_spec_random.cuda()
             batch_h_random = batch_h_random.cuda()
+            # batch_wav_train = batch_wav_train.cuda()
+            # batch_spec_train = batch_spec_train.cuda()
 
+        # fs = 8000
+
+        # predict parameters through waveform
+        # note: we can predict h through batch_spec, too. But I found waveform is better. batch_spec is derived from batch_wav.
         h_hat = E(batch_spec_random)
         # h_hat = transform_params(h_hat)
         # print(batch_h_random)
@@ -450,14 +608,9 @@ def new_training_technique(epoch, train_D=False, train_E=False, init=False):
             # if not init:
             music_tmp = h_hat.data.cpu().numpy().astype('float64')
 
-            for j in range(0,music_tmp.shape[0]):
-                for k in range(6,9):
+            for j in range(0, music_tmp.shape[0]):
+                for k in range(6, 9):
                     music_tmp[j, k, :] = min_max_norm(music_tmp[j, k, :])
-
-            frmlen = 8
-            tc = 8
-            sampling_rate = fs
-            paras_c = [frmlen, tc, -2, np.log2(sampling_rate / 16000.0)]
 
             music_tensor = Variable(torch.from_numpy(music_tmp)).contiguous().float()
 
@@ -490,12 +643,20 @@ def new_training_technique(epoch, train_D=False, train_E=False, init=False):
 
             if init:
                 c = E(batch_spec_random)
+                # c = transform_params(c)
+                # c[:][0][:] = (c[:][0][:]*12) +62
+                # c[:][1][:] = (c[:][1][:]*0.3) +0.7
+                # c[:][2][:] = (c[:][2][:]*0.5) +0.4
+                # c[:][3][:] = (c[:][3][:]*50) +50
 
                 loss1 = criteron(c, batch_h_random)
 
             else:
                 loss_E1 = criteron(D(h_hat), batch_spec_random)
+                # c = E(batch_spec_random)
+                # loss_E2 = criteron(c, batch_h_random)
 
+                # loss1 = (loss_E1 + loss_E2)/2
                 loss1 = loss_E1
 
             # print(loss1)
@@ -522,17 +683,58 @@ def new_training_technique(epoch, train_D=False, train_E=False, init=False):
                            elapsed * 1000 / (batch_idx + 1), train_loss1 / (batch_idx + 1),
                            train_loss2 / (batch_idx + 1), train_loss / (batch_idx + 1)))
 
+    val_loss1 = 0.0
+    val_loss2 = 0.0
+    E.eval()
+    D.eval()
+
+    for (batch_idx_val, data_random_val) in enumerate(dev_loader):
+        # Transfer Data to GPU if available
+        batch_wav_val = Variable(data_random_val[0]).contiguous().float()
+        batch_h_val = Variable(data_random_val[2]).contiguous().float()
+        batch_spec_val = Variable(data_random_val[3]).contiguous().float()
+
+        if args.cuda:
+            batch_wav_val = batch_wav_val.cuda()
+            batch_spec_val = batch_spec_val.cuda()
+            batch_h_val = batch_h_val.cuda()
+
+        h_hat_val = E(batch_spec_val)
+
+        music_tmp = h_hat_val.data.cpu().numpy().astype('float64')
+
+        for j in range(0, music_tmp.shape[0]):
+            for k in range(6, 9):
+                music_tmp[j, k, :] = min_max_norm(music_tmp[j, k, :])
+
+        music_tensor = Variable(torch.from_numpy(music_tmp)).contiguous().float()
+
+        s2 = TV_syn(music_tensor)
+
+        if args.cuda:
+            s2 = s2.cuda()
+
+        loss2_val = criteron(D(h_hat_val), s2)
+        loss1_val = criteron(D(h_hat_val), batch_spec_val)
+
+        val_loss1 += loss1_val.item()
+        val_loss2 += loss2_val.item()
+
     train_loss1 /= (batch_idx + 1)
     train_loss2 /= (batch_idx + 1)
     train_loss /= (batch_idx + 1)
-
+    val_loss1 /= (batch_idx_val + 1)
+    val_loss2 /= (batch_idx_val + 1)
+    # train_loss1 /= len(train_loader)
+    # train_loss2 /= len(train_loader)
+    # train_loss /= len(train_loader)
     print(len(train_loader), 'len(train_loader)')
     print("Losses calculated")
 
     log_print('-' * 99)
     log_print(
-        '    | end of training epoch {:3d} | time: {:5.2f}s | train loss1 (encoder) {:5.8f} | train loss2 (decoder){:5.8f}|'.format(
-            epoch, (time.time() - start_time), train_loss1, train_loss2))
+        '    | end of training epoch {:3d} | time: {:5.2f}s | train loss1 (encoder) {:5.8f} | train loss2 (decoder){:5.8f}|  val loss1 (encoder) {:5.8f} | val loss2 (decoder){:5.8f}|'.format(
+            epoch, (time.time() - start_time), train_loss1, train_loss2, val_loss1, val_loss2))
 
     return train_loss, train_loss1, train_loss2, new_loss
 
@@ -609,8 +811,8 @@ def generate_figures(mode="evaluation", name="", load_weights=("", "")):
         loader = validation_loader
     elif mode == "train":
         loader = train_loader
-    elif mode == "train_random":
-        loader = train_random
+    # elif mode == "train_random":
+    #     loader = train_random
     else:
         print("We did not understand the mode, we skip this function.")
         return
@@ -635,6 +837,13 @@ def generate_figures(mode="evaluation", name="", load_weights=("", "")):
         D.cuda()
 
     pad = 10
+    # mel_basis = librosa.filters.mel(16000, 1024, n_mels=256)
+    # if args.cuda:
+    #     mel_basis = torch.from_numpy(mel_basis).cuda().float().unsqueeze(0)
+    # else:
+    #     mel_basis = torch.from_numpy(mel_basis).float().unsqueeze(0)
+
+    spectrograms = []
 
     for batch_idx, data in enumerate(loader):
 
@@ -651,6 +860,9 @@ def generate_figures(mode="evaluation", name="", load_weights=("", "")):
         # predict parameters through waveform
         batch_h_hat = E(batch_spec)
 
+        # mel_b = librosa.filters.mel(16000, 1024, n_mels=256)
+        # f0_temp = batch_h_hat[:, 0:1, :].data.cpu().numpy().astype('float64')
+        # sp_temp = batch_h_hat[:, 1:514, :].data.cpu().numpy().astype('float64')
         music_tmp = batch_h_hat[:, 0:params, :].data.cpu().numpy().astype('float64')
         music = batch_h[:, 0:params, :].data.cpu().numpy().astype('float64')
 
@@ -658,13 +870,26 @@ def generate_figures(mode="evaluation", name="", load_weights=("", "")):
             for k in range(6, 9):
                 music_tmp[j, k, :] = min_max_norm(music_tmp[j, k, :])
 
+        # for k in range(0, 6):
+        #     music_tmp[:, k, :] = music_tmp[:, k, :] * 2 + (-1)
+
+        # print(music_temp.shape)
         if not os.path.exists(local_out_init + "/waveforms"):
             os.makedirs(local_out_init + "/waveforms")
 
+        # spec_wav = np.zeros((batch_wav.shape[0], 128, spec_len)).astype('float64')
+        # spec_wav = np.zeros((batch_wav.shape[0], 128, 250)).astype('float64')
         frmlen = 8
         tc = 8
         sampling_rate = fs
         paras_c = [frmlen, tc, -2, np.log2(sampling_rate / 16000.0)]
+        # print(paras_c)
+        # print(np.log2(4000/ 16000))
+
+        # if args.cuda:
+        #     music_tensor = Variable(torch.from_numpy(music_tmp)).contiguous().cuda().float()
+        # else:
+        #     music_tensor = Variable(torch.from_numpy(music_tmp)).contiguous().float()
 
         music_tensor = Variable(torch.from_numpy(music_tmp)).contiguous().float()
 
@@ -674,10 +899,24 @@ def generate_figures(mode="evaluation", name="", load_weights=("", "")):
         ## SAVE ALL FIGURES
         wave_files = batch_wav[:, :].data.cpu().numpy().astype('float64')
 
+        #ve_files = batch_wav[:, :].data.cpu().numpy().astype('float64') music_temp[:, 0, :] = (music_temp[:, 0, :] * 12) +62
+        # music_temp[:, 1, :] = (music_temp[:, 1, :] * 0.3) + 0.7
+        # music_temp[:, 2, :] = (music_temp[:, 2, :] * 0.5) + 0.4
+        # music_temp[:, 3, :] = (music_temp[:, 3, :] * 50) + 50
+
 
         # batch_h_random = torch.cat([f0_random, sp_random, ap_random], 1)
 
         local_out_init += "/lentent_space/"
+
+#        if mode == "evaluation":
+#            corr_avg, avg_corr = compute_corr_score(music_tmp, music, params)
+#
+#            # write a .txt with results and model params
+#            lines = ['Corr_Average:' + str(corr_avg), 'Corr_Average_TVs:' + str(avg_corr)]
+#            with open(out_dir + 'log.txt', 'w') as f:
+#                f.write('\n'.join(lines))
+#
 #
         if mode == "evaluation":
             corr_avg, avg_corr, avg_corr_6TVs = compute_corr_score(music_tmp, music, params)
@@ -919,8 +1158,8 @@ def getSpectrograms(mode="evaluation"):
     elif mode == "evaluation":
         loader = validation_loader
 
-    elif mode == "train_random":
-        loader = train_random
+    # elif mode == "train_random":
+    #     loader = train_random
     else:
         print("The mode is not understood, therefore we don't compute spectrograms.")
         return [([], [], [], [])]
@@ -939,6 +1178,12 @@ def getSpectrograms(mode="evaluation"):
     sampling_rate = fs
     paras_c = [frmlen, tc, -2, np.log2(sampling_rate / 16000.0)]
 
+    # mel_basis = librosa.filters.mel(16000, 1024, n_mels=256)
+    # if args.cuda:
+    #     mel_basis = torch.from_numpy(mel_basis).cuda().float().unsqueeze(0)
+    # else:
+    #     mel_basis = torch.from_numpy(mel_basis).float().unsqueeze(0)
+
     spectrograms = []
 
     for batch_idx, data in enumerate(loader):
@@ -952,6 +1197,14 @@ def getSpectrograms(mode="evaluation"):
             batch_spec = batch_spec.cuda()
             batch_h = batch_h.cuda()
 
+        # ## mel-spectrogram
+        # #If we are using Aud Spec, we do no need to use this blocl of code and let batch_spec be the way it is
+        # batch_spec = batch_spec ** 2
+        # mel_basis_ep = mel_basis.expand(batch_spec.size(0),mel_basis.size(1),mel_basis.size(2))
+        # batch_spec = torch.bmm(mel_basis_ep, batch_spec)
+        # batch_spec = torch.log(batch_spec)
+        # batch_spec[batch_spec == float("-Inf")] = -50
+
         # predict parameters through waveform
         batch_h_hat = E(batch_spec)
         # fs = 8000
@@ -961,9 +1214,129 @@ def getSpectrograms(mode="evaluation"):
             for k in range(6, 9):
                 music_tmp[j, k, :] = min_max_norm(music_tmp[j, k, :])
 
+        # for k in range(0, 6):
+        #     music_tmp[:, k, :] = music_tmp[:, k, :] * 2 + (-1)
+
+        # music_tmp[:, 0, :] = (music_tmp[:, 0, :] * 30) + 12  # 12 to 42
+        # music_tmp[:, 1, :] = (music_tmp[:, 1, :] * 4.5) + -1  # -1 to 3.5
+        # music_tmp[:, 2, :] = (music_tmp[:, 2, :] * 0.9)  # 0.0 to 0.9
+        # music_tmp[:, 4, :] = (music_tmp[:, 4, :] * 1.3) + 0.2  # 0.2 to 1.5
+        # music_tmp[:, 5, :] = (music_tmp[:, 5, :] * 70) + 80  # 80 to 150
+
+        #music_tense = music_tmp[:, 2, :]
+        #music_tense[music_tense > 0.5] = 0.9
+        #music_tense[music_tense <= 0.5] = 0.0
+
+        # music_nasal = music_tmp[:, 3, :]
+        # music_nasal[music_nasal > 0.5] = 0.04
+        # music_nasal[music_nasal <= 0.5] = 0.01
+        #
+        # #music_tmp[:, 2, :] = music_tense
+        # music_tmp[:, 3, :] = music_nasal
+
+       # for k in range(0, music_tmp.shape[0]):
+       #     for i in range(0, music_tmp.shape[2]):
+       #         if music_tmp[k, 2, i] > 0.5:
+       #             music_tmp[k, 2, i] = 0.9
+       #         else:
+       #             music_tmp[k, 2, i] = 0.0
+       #         if music_tmp[k, 3, i] > 0.5:
+       #             music_tmp[k, 3, i] = 0.04
+       #         else:
+       #             music_tmp[k, 3, i] = 0.01
+       # # music_temp[:, 0, :] = (music_temp[:, 0, :] * 12) +62
+       # # music_temp[:, 1, :] = (music_temp[:, 1, :] * 0.3) + 0.7
+        # music_temp[:, 2, :] = (music_temp[:, 2, :] * 0.5) + 0.4
+        # music_temp[:, 3, :] = (music_temp[:, 3, :] * 50) + 50
+
+        # spec_wav = np.zeros((batch_wav.shape[0], 128, spec_len)).astype('float64')
+        # spec_wav = np.zeros((batch_wav.shape[0], 128, 250)).astype('float64')
+        #print("music temp shape")
+        #print(music_tmp.shape)
+
+
+        # if args.cuda:
+        #     music_tensor = Variable(torch.from_numpy(music_tmp)).contiguous().cuda().float()
+        # else:
+        #     music_tensor = Variable(torch.from_numpy(music_tmp)).contiguous().float()
+
         music_tensor = Variable(torch.from_numpy(music_tmp)).contiguous().float()
 
         spec_wav = TV_syn(music_tensor)
+
+
+        # for j in range(music_tmp.shape[0]):
+        #     music = music_tmp[j, :, :].copy(order='C')  # 406, 513
+        #     # y = pw.synthesize(f0, sp, ap, fs, frame_period=8.0)
+        #     # print(music.mean(axis=0))
+        #     # print(music)
+        #     #print(music.shape)
+        #
+        #     music_tensor = torch.from_numpy(music)
+        #
+        #     if args.cuda:
+        #         music_tensor = music_tensor.cuda()
+        #
+        #     y_spec = TV_syn(music_tensor)
+        #
+        #     # y_spec = TV_syn(music)
+        #     # y = y[:, 0]
+        #     # y = voc_syn.resample(y, 44100, fs)  # resampling
+        #     # # y = pw.synthesize(f0, sp, music, fs, frame_period=8.0)
+        #     # #y = y[pad:pad + 32000]
+        #     # #print(y.shape)
+        #     # y = y / np.sqrt(np.sum(y ** 2))  # normalize the power of waveform to 1
+        #
+        #     # music_syn.write_to_wav(y,fs,j)
+        #
+        #     # transfer wavform to power of mel-spectrogram
+        #     # spec_tmp = nsl.wav2aud(nsl.unitseq(y), paras_c)
+        #     # spec_tmp = spec_tmp.T
+        #
+        #     # #The below block may not be necessary if using Aud Specs
+        #     # spec_tmp = librosa.core.stft(y, n_fft=1024, hop_length = 80)
+        #     # spec_tmp = np.abs(spec_tmp) ** 2
+        #     # spec_tmp = np.dot(mel_b, spec_tmp)
+        #     # spec_tmp = np.log(spec_tmp)
+        #     # spec_tmp[spec_tmp == float("-Inf")] = -50
+        #     # spec_wav[j, :, :] = np.sqrt(spec_tmp)[:,0:250]
+        #     spec_wav[j, :, 0:spec_len] = y_spec[:, 0:spec_len]
+
+        # print("out side initialization for loop")
+
+        # if not os.path.exists(out + "/spectrograms"):
+        #        os.makedirs(out + "/spectrograms")
+
+        # plot DIVA spectrogram separately
+        # plt.imshow(spec_wav[1], cmap='jet', origin='lower', aspect="auto")
+        # plt.title('Spectrogram from DIVA (from encoder h)')  # World(E(H))
+        # plt.savefig(out + "/spectrograms/" +"diva_spectrogram.eps")
+
+        # music = batch_h[:, params:, :].data.cpu().numpy().astype('float64')
+        #music = batch_h[:, 0:params, :].data.cpu().numpy().astype('float64')
+        #music[:, 0, :] = (music[:, 0, :] -12)/30.0  # 12 to 42
+        #music[:, 1, :] = (music[:, 1, :] +1)/4.5  # -1 to 3.5
+
+        #music = torch.from_numpy(music).float()
+        #batch_h_new = music.to(device)
+
+
+#        music_tense = music[:, 2, :]
+#        music_tense[music_tense > 0.5] = 0.9
+#        music_tense[music_tense <= 0.5] = 0.0
+#
+#        music_nasal = music_tmp[:, 3, :]
+#        music_nasal[music_nasal > 0.5] = 0.04
+#        music_nasal[music_nasal <= 0.5] = 0.01
+#
+#        music_tmp[:, 2, :] = music_tense
+#        music_tmp[:, 3, :] = music_nasal
+#
+        # Rescaling for plotting
+        # batch_h[:, 0, :] = (batch_h[:, 0, :] - 62)/12
+        # batch_h[:, 1, :] = (batch_h[:, 1, :] - 0.7)/0.3
+        # batch_h[:, 2, :] = (batch_h[:, 2, :] - 0.4)/0.5
+        # batch_h[:, 3, :] = (batch_h[:, 3, :] - 50)/50
 
         #####################################################################################################################
 
@@ -1065,6 +1438,9 @@ exp_name = 'MirrorNet'
 descripiton = 'train MirrorNet without ideal hiddens'
 exp_new = 'tmp/'
 base_dir = './'
+# exp_prepare='/hdd/cong/exp_prepare_folder.sh'
+# net_dir=base_dir + exp_new + '/' + exp_name+'/net'
+# subprocess.call(exp_prepare+ ' ' + exp_name + ' ' + base_dir + ' ' + exp_new, shell=True)
 
 ### Set the name of the folder
 out = "figs/NEW_with_only_1_loss_for_SI_noinit_" + str(date.today()) + "_H_" + str(datetime.datetime.now().hour)
@@ -1125,9 +1501,11 @@ parser.add_argument('--test_data', type=str,
                     default=base_dir + "SI_data/New_train_files/test_audio_XRMB_ext_2sec_new.data",
                     help='path to testing data')
 
-# Not used
+parser.add_argument('--dev_data', type=str,  default=base_dir+"SI_data/New_train_files/dev_audio_XRMB_ext_2sec_new.data",
+                    help='path to dev data')
+
 parser.add_argument('--initialization_data', type=str,
-                    default=base_dir + "SI_data/New_train_files/dev_audio_XRMB_ext_2sec_new.data",
+                    default=base_dir + "SI_data/New_train_files/init_audio_XRMB_ext_2sec_winit.data",
                     help='path to initialization data')
 
 parser.add_argument('--train_random_data', type=str,
@@ -1155,13 +1533,13 @@ else:
 
 training_data_path = args.train_data
 validation_data_path = args.test_data
+dev_data_path = args.dev_data
 initialization_data_path = args.initialization_data
-train_random_data_path = args.train_random_data
 
-# initialization_loader = DataLoader(BoDataset(initialization_data_path),
-#                           batch_size=args.batch_size,
-#                           shuffle=False,
-#                           **kwargs)
+initialization_loader = DataLoader(BoDataset(initialization_data_path),
+                          batch_size=args.batch_size,
+                          shuffle=False,
+                          **kwargs)
 
 train_loader = DataLoader(BoDataset(training_data_path),
                           batch_size=args.batch_size,
@@ -1170,10 +1548,10 @@ train_loader = DataLoader(BoDataset(training_data_path),
 # print ('----------------------', list(train_loader))
 # print ('.,.,.,.,.,.,.,.,.,.', (list(train_loader)[0]))
 
-train_random = DataLoader(BoDataset(train_random_data_path),
-                          batch_size=args.batch_size,
-                          shuffle=False,
-                          **kwargs)
+dev_loader = DataLoader(BoDataset(dev_data_path),
+                        batch_size=args.batch_size,
+                        shuffle=False,
+                        **kwargs)
 
 validation_loader = DataLoader(BoDataset(validation_data_path),
                                batch_size=args.batch_size,
@@ -1286,7 +1664,7 @@ plotSpectrograms(spec, "before_training_train_data")
         TRAINING
 '''
 print("TRAINING")
-for i in range(150):
+for i in range(40):
     #torch.cuda.empty_cache()
     print("ITERATION", str(i + 1))
     trainTogether_newTechnique(epochs=15, name="train_D_" + str(i + 1), init=False, train_D=True, train_E=False,
@@ -1321,5 +1699,23 @@ with open(out_dir + exp_new + '/net/voc_model_weight_E1.pt', 'wb') as f:
 with open(out_dir + exp_new + '/net/voc_model_weight_D1.pt', 'wb') as f:
     torch.save({'model_state_dict': D.cpu().state_dict(), 'optimizer_state_dict': D_optimizer.state_dict()}, f)
     print("We saved decoder!")
+
+# '''
+#         POST_TRAINING
+# '''
+#
+# print("POST_TRAINING")
+# trainTogether_newTechnique(epochs=10, init=True, train_D=True, train_E=False, loader_eval="train",
+#                            save_better_model=True)  # 100 to 5 to 1
+#
+# print("************************************************************************************************************")
+# print("post training done")
+# print("************************************************************************************************************")
+#
+# spec = getSpectrograms("train")
+# plotSpectrograms(spec, "POST_TRAIN_train_data")
+#
+# spec = getSpectrograms("evaluation")
+# plotSpectrograms(spec, "POST_TRAIN_evaluation_data")
 
 print("Done.")

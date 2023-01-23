@@ -1,12 +1,8 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-'''
-This script implements the articulatory synthesizer which uses only a part of the train set (~30 mins) and source features as inputs
+# Authors: Rahil, Yashish Maduwantha
 
-Author : Yashish
-
-'''
 from __future__ import print_function
 import argparse
 
@@ -16,23 +12,37 @@ SERVER = True  # This variable enable or disable matplotlib, set it to true when
 if SERVER:
     matplotlib.use('Agg')
 
+import sys
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from torch.autograd import Variable
 from torch.utils.data import DataLoader
 from torch.utils.data import Dataset
 import torch.optim as optim
+# from utils import correlation_coefficient_loss as myloss
 
 import os
 import numpy as np
 import h5py
 import time
+import subprocess
 import logging
+
+# from IPython.display import Audio
+# import pyworld as pw
+# import librosa
 
 from datetime import date
 import matplotlib.pyplot as plt
 import pickle as pkl
 import datetime
+import nsltools as nsl
+
+
+# get_ipython().run_line_magic('matplotlib', 'inline')
+
+# get_ipython().run_line_magic('env', 'CUDA_VISIBLE_DEVICES = 0')
 
 # In[61]:
 tv_dim = 9 #32 # 64
@@ -65,7 +75,8 @@ class BoDataset(Dataset):
     def __getitem__(self, index):
         # print (index)
         wav_tensor = torch.from_numpy(self.wav[index])  # raw waveform with normalized power
-
+        # print (len(self.hidden[index]))
+        # spec_tensor = torch.from_numpy(self.spec[index])         # magnitude of spectrogram of raw waveform
         if len(self.hidden[index]) > 0:
             hidden_tensor = torch.from_numpy(self.hidden[index])  # parameters of world
         else:
@@ -193,14 +204,16 @@ class synthesis_model(nn.Module):
             nn.BatchNorm1d(128, 128, 1),
             #nn.Dropout(p=0.3),
             nn.ReLU(),
-            nn.AvgPool1d(4, stride=4),
+            nn.Upsample(scale_factor=5),
+            #nn.AvgPool1d(4, stride=4),
             nn.Conv1d(128, 256, 1),
             nn.BatchNorm1d(256, 256, 1),
             #nn.Dropout(p=0.3),
-            #nn.ReLU(),
-            nn.Upsample(scale_factor=5),
-            #nn.Conv1d(256, 256, 1),  # Kernel size 1 with 0 padding maintains length of output signal=401
-            #nn.BatchNorm1d(256, 256, 1),
+            nn.ReLU(),
+            nn.AvgPool1d(4, stride=4),
+            #nn.Upsample(scale_factor=5),
+            nn.Conv1d(256, 256, 1),  # Kernel size 1 with 0 padding maintains length of output signal=401
+            nn.BatchNorm1d(256, 256, 1),
             #nn.Dropout(p=0.3),
             nn.ReLU()
 
@@ -220,24 +233,40 @@ class synthesis_model(nn.Module):
             nn.Conv1d(256, 256, 1),
             nn.GroupNorm(1, self.AE_channel, eps=1e-16),
             nn.Conv1d(256, 128, 1),
-            #nn.Conv1d(128, 128, 1)  # added new
+            nn.Conv1d(128, 128, 1)  # added new
             # nn.BatchNorm1d(128, 128, 1),  # added new
             # nn.ReLU()                 # added new
 
         )
 
     def forward(self, input):
+        # input shape: B, T
+        # batch_size = input.size(0)
+        # nsample = input.size(1)
+
+        #
+        # print (input.size(), 'decoder input.size()')    #64-1027-251 shape of latent space
+        # this_input = self.L1(input)  # 64-128-250
+
+        # f0_out = self.f0_seq(input[0])
+        # ap_out = self.ap_seq(input[2])
         sp_out = self.sp_seq(input)
 
         # # this_input = torch.cat([f0_out, sp_out, ap_out], 1)
         this_input = sp_out
+
+        #new_input = self.final_conv(this_input)
+        # this_input = input
 
         # print (this_input.size(),'this_input before CNN stack decoder--------' )
         for i in range(len(self.CNN)):
             this_input = self.CNN[i](this_input)  # 64-128-250
             # print (this_input.size(), 'Size(this_input) inside CNN stack decoder')
 
+        #this_input = self.final_conv(this_input)
+
         final_input = self.L2(this_input)
+        # print (this_input.size(), 'Size(this_input). Decoder op') #output is 64-128-250
 
         return final_input
 
@@ -262,8 +291,15 @@ def new_training_technique(epoch, init=False):
     train_loss = 0.
     train_loss = 0.
     new_loss = 0.
+    E2_train = 0.  # Decoder Error ||W(H_hat), D(H_Hat)||
+    # E1_train = 0.  # Encoder Error || D(E(X)), X ||
 
     pad = 40
+    # mel_basis = librosa.filters.mel(16000, 1024, n_mels=256)
+    # if args.cuda:
+    #     mel_basis = torch.from_numpy(mel_basis).cuda().float().unsqueeze(0)
+    # else:
+    #     mel_basis = torch.from_numpy(mel_basis).float().unsqueeze(0)
     if init:
         for (batch_idx, data_random) in enumerate(train_loader):
 
@@ -296,10 +332,13 @@ def new_training_technique(epoch, init=False):
                         epoch, batch_idx + 1, len(train_loader),
                                elapsed * 1000 / (batch_idx + 1), train_loss / (batch_idx + 1)))
 
+            # predict parameters through waveform
+            # note: we can predict h through batch_spec, too. But I found waveform is better. batch_spec is derived from batch_wav.
+
         val_loss = 0.0
         model.eval()  # Optional when not using Model Specific layer
 
-        for (batch_idx_val, data_random_val) in enumerate(validation_loader):
+        for (batch_idx_val, data_random_val) in enumerate(dev_loader):
             # Transfer Data to GPU if available
             batch_wav_random = Variable(data_random_val[0]).contiguous().float()
             batch_h_random = Variable(data_random_val[2]).contiguous().float()
@@ -314,11 +353,43 @@ def new_training_technique(epoch, init=False):
             # Calculate Loss
             val_loss += loss.item()
 
+        # if min_valid_loss > val_loss:
+        #     print(f'Validation Loss Decreased({min_valid_loss:.6f\
+        #        }--->{val_loss:.6f}) \t Saving The Model')
+        #     min_valid_loss = val_loss
+        #
+        #     # Saving State Dict
+        #     torch.save(model.state_dict(), 'saved_model.pth')
+
+            # if train_E:
+            #     E_optimizer.zero_grad()
+            #
+            #     if init:
+            #         enc_out = E(batch_spec_random)
+            #         loss1 = criteron(enc_out, batch_h_random)
+            #
+            #     loss1.backward()
+            #     E_optimizer.step()
+            #     train_loss1 += loss1.data.item()
+            #
+            # if train_E and train_D:
+            #     loss = loss1 + loss2
+            #     train_loss += loss.data.item()
+
+            # loss.backward()
+            # all_optimizer.step()
+
     # train_loss1 /= (batch_idx + 1)
     train_loss /= (batch_idx + 1)  # Decoder error per epoch.
     # train_loss /= (batch_idx + 1)  # total loss
     new_loss /= (batch_idx + 1)
     val_loss /= (batch_idx_val + 1)
+    # E2_train /= (batch_idx+1)
+    # E1_train /= (batch_idx + 1)
+    # train_loss1 /= len(train_loader)
+    # train_loss2 /= len(train_loader)
+    # train_loss /= len(train_loader)
+    # print (len(train_loader), 'len(train_loader)')
 
     log_print('-' * 99)
     log_print(
@@ -357,6 +428,15 @@ def trainTogether_newTechnique(epochs=None, save_better_model=False, loader_eval
 
     print()
 
+    # if train_E and not train_D:
+    #     print("TRAINING E ONLY")
+    # if not train_E and train_D:
+    #     print("TRAINING D ONLY")
+    # if train_E and train_D:
+    #     print("TRAINING E AND D")
+    # if not train_E and not train_D:
+    #     print("TRAINING NOTHING ...")
+
     # Training all
     for epoch in range(1, epochs + 1):
         print(epoch, 'epoch')
@@ -371,13 +451,156 @@ def trainTogether_newTechnique(epochs=None, save_better_model=False, loader_eval
         new_loss.append(error[1])  # E2 error for decoder during training
         # print("Difference between D en W:", error[3])
 
+        # if train_D and not init:
+        #     E2_loss_decoder.append(error[5])
+
+        # if train_E and not init:
+        #     E1_loss_encoder.append(error[4])
+
         decay_cnt2 += 1
+
+        # if np.min(training_loss_encoder) not in training_loss_encoder[-3:] and decay_cnt1 >= 3:
+        #     E_scheduler.step()
+        #     decay_cnt1 = 0
+        #     log_print('      Learning rate decreased for E.')
+        #     log_print('-' * 99)
 
         if np.min(training_loss) not in training_loss[-3:] and decay_cnt2 >= 3:
             model_scheduler.step()
             decay_cnt2 = 0
             log_print('      Learning rate decreased for D.')
             log_print('-' * 99)
+
+#        if train_D:  # and epoch % 5==0:
+#            print("EVAL DECOER")
+#            total_loss_eval, encoder_loss_eval, decoder_loss_eval = quickEval(epoch, loader='evaluation',
+#                                                                              train_D=train_D, train_E=train_E,
+#                                                                              ideal_h=True)
+#            print(
+#                '--------------------------------------------------------------------------------------------------------')
+#            print('Decoder:---', decoder_loss_eval)
+#            validation_temp_decoder.append(decoder_loss_eval)
+#            # print (validation_temp_decoder, 'validation_temp_decoder')
+#
+#        if train_E:  # and epoch % 5==0:
+#            print("EVAL ENCODER")
+#            total_loss_eval, encoder_loss_eval, decoder_loss_eval = quickEval(epoch, loader='evaluation',
+#                                                                              train_D=train_D, train_E=train_E,
+#                                                                              ideal_h=False)
+#            print(
+#                '--------------------------------------------------------------------------------------------------------')
+#            print('Encoder:---', encoder_loss_eval)
+#            # print("___________________")
+#            validation_temp_encoder.append(encoder_loss_eval)
+#            # print (validation_temp_encoder, 'validation_temp_encoder')
+#
+#        if epoch % 10 == 0:
+#
+#            if save_better_model:
+#
+#                if train_E:
+#                    validation_loss_encoder.append(encoder_loss_eval)
+#                    if epoch >= 10 and np.min(validation_loss_encoder) == validation_loss_encoder[-1]:
+#                        with open(base_dir + exp_new + '/net/speech_model_weight_E1.pt', 'wb') as f:
+#                            torch.save(E.cpu().state_dict(), f)
+#                        print("We saved encoder!")
+#                        print()
+#
+#                if train_D:
+#                    validation_loss_decoder.append(decoder_loss_eval)
+#                    # If we found a best model we save it!
+#                    if epoch >= 10 and np.min(validation_loss_decoder) == validation_loss_decoder[-1]:
+#                        with open(base_dir + exp_new + '/net/speech_model_weight_D1.pt', 'wb') as f:
+#                            torch.save(D.cpu().state_dict(), f)
+#                        print("We saved decoder!")
+#                        print()
+#
+#    if save_better_model and train_D:
+#        D.load_state_dict(torch.load(base_dir + exp_new + '/net/speech_model_weight_D1.pt'))
+#    if save_better_model and train_E:
+#        E.load_state_dict(torch.load(base_dir + exp_new + '/net/speech_model_weight_E1.pt'))
+#
+#    # print (len(validation_temp_encoder), 'len(validation_temp_encoder)')
+#    # print (validation_temp_encoder, 'validation_temp_encoder')
+#    # print (np.shape(validation_temp_encoder), 'np.shape(validation_temp_encoder)')
+#
+#    if train_D and not init:
+#        print("Sequence of losses between D and W:")
+#        print(new_loss)
+#        print("Training Loss for Decoder:")
+#        print(training_loss_decoder)
+#        plt.title("Decoder_Training_error")
+#        plt.plot(training_loss_decoder, label='total_decoder_traing_loss')
+#        plt.plot(new_loss, label='E2 error: Difference_b/w_World and decoder')
+#        plt.legend()
+#        plt.savefig(out + "/loss/loss_decoder_train" + name + ".eps")
+#        if not SERVER:
+#            plt.show()
+#        else:
+#            plt.close()
+#
+#    if train_E and not init:
+#        print("E1 Error:")
+#        print(E1_loss_encoder)
+#        print("Training Loss for Encoder:")
+#        print(training_loss_encoder)
+#        plt.title("Encoder_Training_error")
+#        plt.plot(training_loss_encoder, label='total_encoder_traing_loss')
+#        plt.plot(E1_loss_encoder, label='E1_error_(for_Encoder)')
+#        plt.legend()
+#        plt.savefig(out + "/loss/loss_encoder_train" + name + ".eps")
+#        if not SERVER:
+#            plt.show()
+#        else:
+#            plt.close()
+#
+#    if train_D:
+#        print("Validation Loss for Decoder:")
+#        print(validation_temp_decoder)
+#        print(name, 'name')
+#
+#        plt.title("Validation Loss for Decoder:")
+#        plt.plot(validation_temp_decoder)
+#        plt.savefig(out + "/loss/loss_validation_temp_decoder" + name + ".eps")
+#        if not SERVER:
+#            plt.show()
+#        else:
+#            plt.close()
+#
+#        if init:
+#            print("Training Loss for Decoder:")
+#            print(training_loss_decoder)
+#            plt.title("Training Loss for Decoder")
+#            plt.plot(training_loss_decoder)
+#            plt.savefig(out + "/loss/loss_training_decoder_init" + name + ".eps")
+#            if not SERVER:
+#                plt.show()
+#            else:
+#                plt.close()
+#
+#    if train_E:
+#        print("Validation Loss for Encoder:")
+#        print(validation_temp_encoder)
+#        print(name, 'name')
+#
+#        plt.title("Validation Loss for Encoder:")
+#        plt.plot(validation_temp_encoder)
+#        plt.savefig(out + "/loss/validation_temp_encoder" + name + ".eps")
+#        if not SERVER:
+#            plt.show()
+#        else:
+#            plt.close()
+#
+#        if init:
+#            print("Training Loss for Encoder:")
+#            print(training_loss_encoder)
+#            plt.title("Training Loss for Encoder")
+#            plt.plot(training_loss_encoder)
+#            plt.savefig(out + "/loss/loss_training_encoder_init" + name + ".eps")
+#            if not SERVER:
+#                plt.show()
+#            else:
+#                plt.close()
 
 
 def getSpectrograms(mode="evaluation"):
@@ -412,6 +635,12 @@ def getSpectrograms(mode="evaluation"):
     sampling_rate = 16000
     paras_c = [frmlen, tc, -2, np.log2(sampling_rate / 16000)]
 
+    # mel_basis = librosa.filters.mel(16000, 1024, n_mels=256)
+    # if args.cuda:
+    #     mel_basis = torch.from_numpy(mel_basis).cuda().float().unsqueeze(0)
+    # else:
+    #     mel_basis = torch.from_numpy(mel_basis).float().unsqueeze(0)
+
     spectrograms = []
 
     for batch_idx, data in enumerate(loader):
@@ -425,12 +654,44 @@ def getSpectrograms(mode="evaluation"):
             batch_spec = batch_spec.cuda()
             batch_h = batch_h.cuda()
 
+        # ## mel-spectrogram
+        # #If we are using Aud Spec, we do no need to use this blocl of code and let batch_spec be the way it is
+        # batch_spec = batch_spec ** 2
+        # mel_basis_ep = mel_basis.expand(batch_spec.size(0),mel_basis.size(1),mel_basis.size(2))
+        # batch_spec = torch.bmm(mel_basis_ep, batch_spec)
+        # batch_spec = torch.log(batch_spec)
+        # batch_spec[batch_spec == float("-Inf")] = -50
+
+        # predict parameters through waveform
+        # batch_f0, batch_sp, batch_ap = E(batch_spec)
         fs = 16000
+        # batch_sp_code = E(batch_spec)
+        # batch_ap = pw.decode_aperiodicity(batch_ap_code, fs, fftlen)
+        # batch_sp = pw.decode_spectral_envelope(batch_sp_code, fs, fftlen)
+
+        # batch_h_hat = torch.cat([batch_f0, batch_sp, batch_ap], 1)
+
+        ############# World ###################################################################################################
+        # mel_b = librosa.filters.mel(16000, 1024, n_mels=256)
+        # f0_temp = batch_h_hat[:, 0:1, :].data.cpu().numpy().astype('float64')
+        # sp_temp = batch_h_hat[:, 1:514, :].data.cpu().numpy().astype('float64')
+        # ap_temp = batch_h_hat[:, 514:, :].data.cpu().numpy().astype('float64')
+        # f0_temp = batch_f0.data.cpu().numpy().astype('float64')
+        # sp_temp = batch_sp_code.data.cpu().numpy().astype('float64')
+        # ap_temp = batch_ap_code.data.cpu().numpy().astype('float64')
+        # f0_temp = batch_h_hat[:,0:1,:].data.cpu().numpy().astype('float64')
+        # sp_temp = batch_h_hat[:,1:129,:].data.cpu().numpy().astype('float64')
+        # ap_temp = batch_h_hat[:,129:,:].data.cpu().numpy().astype('float64')
 
         spec_wav = np.zeros((batch_wav.shape[0], 128, 250)).astype('float64')
+        # spec_wav = np.zeros((batch_wav.shape[0], 128, 250)).astype('float64')
+
+        #####################################################################################################################
 
         realSpectrogram = np.array(batch_spec.detach().cpu().numpy())
         decoderSpectrogram = np.array(model(batch_h).detach().cpu().numpy())
+        # modelSpectrogram = np.array(model(batch_sp_code).detach().cpu().numpy())
+        # worldSpectrogram = spec_wav
 
         spectrograms.append((realSpectrogram, decoderSpectrogram))
         # In order to only save a few spectrograms (64)
@@ -492,6 +753,9 @@ exp_name = 'Speech_Synthesis'
 descripiton = 'train Speech Synthesis from TVs'
 exp_new = 'tmp/'
 base_dir = './'
+# exp_prepare='/hdd/cong/exp_prepare_folder.sh'
+# net_dir=base_dir + exp_new + '/' + exp_name+'/net'
+# subprocess.call(exp_prepare+ ' ' + exp_name + ' ' + base_dir + ' ' + exp_new, shell=True)
 
 ### Set the name of the folder
 out = "figs/NEW_with_only_1_loss_for_speech_DATE_syn_9TVs_" + str(date.today()) + "_H_" + str(datetime.datetime.now().hour)
@@ -515,6 +779,10 @@ if not os.path.exists(base_dir + exp_new):
 if not os.path.exists(base_dir + exp_new + "log/"):
     os.makedirs(base_dir + exp_new + "log/")
 
+# Create weights directory if don't exist
+#if not os.path.exists(base_dir + exp_new + '/net/'):
+#   os.makedirs(base_dir + exp_new + '/net/')
+
 # setting logger   NOTICE! it will overwrite current log
 log_dir = base_dir + exp_new + "log/" + str(date.today()) + ".log"
 logging.basicConfig(level=logging.INFO,
@@ -525,7 +793,7 @@ logging.basicConfig(level=logging.INFO,
 # global params
 
 parser = argparse.ArgumentParser(description=exp_name)
-parser.add_argument('--batch-size', type=int, default=16,      # changed the batch size from 64
+parser.add_argument('--batch-size', type=int, default=32,      # changed the batch size from 64
                     help='input batch size for training')
 parser.add_argument('--epochs', type=int, default=200,
                     help='number of epochs to train')
@@ -542,10 +810,10 @@ parser.add_argument('--seed', type=int, default=20190101,
 parser.add_argument('--val-save', type=str, default=base_dir + exp_new + '/' + exp_name + '/net/cv/model_weight.pt',
                     help='path to save the best model')
 
-parser.add_argument('--train_data', type=str,  default=base_dir+"SI_data/New_train_files/dev_audio_XRMB_ext_2sec_new.data",  # training with a smaller dev set
+parser.add_argument('--train_data', type=str,  default=base_dir+"SI_data/New_train_files/init_audio_XRMB_ext_2sec_winit.data",  # training with a smaller dev set
                     help='path to training data')
 
-parser.add_argument('--dev_data', type=str,  default=base_dir+"SI_data/New_train_files/test_audio_XRMB_ext_2sec_new.data",
+parser.add_argument('--dev_data', type=str,  default=base_dir+"SI_data/New_train_files/dev_audio_XRMB_ext_2sec_new.data",
                     help='path to dev data')
 
 parser.add_argument('--test_data', type=str,  default=base_dir+"SI_data/New_train_files/test_audio_XRMB_ext_2sec_new.data",
@@ -683,7 +951,13 @@ plotSpectrograms(spec, "before_training_train_data")
 '''
 print("Training")
 #
-trainTogether_newTechnique(epochs=200, init=True, loader_eval="train", save_better_model=True, name='init')
+trainTogether_newTechnique(epochs=100, init=True, loader_eval="train", save_better_model=True, name='init')
+#
+# generate_figures("train_random", name="init") ## evaluation or train
+###generate_figures("train", name="init") ## evaluation or train
+##
+# generate_figures("train", name="end")  ## evaluation or train
+# generate_figures("evaluation", name="end")  ## evaluation or train
 
 spec = getSpectrograms("train")
 plotSpectrograms(spec, "TRAIN_train_data")
